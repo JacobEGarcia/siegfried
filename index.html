@@ -540,14 +540,19 @@ function drawHunt(){
     ctx.moveTo(s.x+ux*10,s.y+uy*10);ctx.lineTo(s.x-uy*5,s.y+ux*5);ctx.lineTo(s.x+uy*5,s.y-ux*5);
     ctx.closePath();ctx.fill();
   }
-  var ang=Hu.facing;
-  if(Hu.dead)ang=Hu.facing+Math.min(1,Hu.dieT*1.5)*(Math.PI/2)*0.9;
-  drawFigure(p.x,p.y,ang,{swing:0});
   var c=huntCore();
-  var bx=c.x-Math.cos(Hu.facing)*30, by=c.y-Math.sin(Hu.facing)*30;
+  var ang=0;
+  if(Hu.dead)ang=Math.min(1,Hu.dieT*1.5)*(Math.PI/2)*0.9;
+  drawFigure(p.x,p.y,ang,{swing:0});
+  var fvx=Math.cos(Hu.facing),fvy=Math.sin(Hu.facing);
+  ctx.strokeStyle=INK;ctx.lineWidth=4;
+  ctx.beginPath();ctx.moveTo(c.x+fvx*26,c.y+fvy*26);ctx.lineTo(c.x+fvx*62,c.y+fvy*62);ctx.stroke();
+  ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(c.x+fvx*40-fvy*7,c.y+fvy*40+fvx*7);ctx.lineTo(c.x+fvx*40+fvy*7,c.y+fvy*40-fvx*7);ctx.stroke();
+  var bx=c.x-fvx*30, by=c.y-fvy*30;
   ctx.strokeStyle=BLOOD;ctx.lineWidth=3;
-  ctx.beginPath();ctx.moveTo(bx-7,by);ctx.lineTo(bx+7,by);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(bx,by-7);ctx.lineTo(bx,by+7);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx-8,by);ctx.lineTo(bx+8,by);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx,by-8);ctx.lineTo(bx,by+8);ctx.stroke();
   if(Hu.dead&&Hu.killer){
     s=Hu.killer;vl=Math.sqrt(s.vx*s.vx+s.vy*s.vy)||1;ux=s.vx/vl;uy=s.vy/vl;
     ctx.strokeStyle=INK;ctx.lineWidth=2;
