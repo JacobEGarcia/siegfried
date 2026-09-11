@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SIEGFRIED - after Die Nibelungen (1924)</title>
+<meta name="description" content="A silent game in three acts, after Fritz Lang's Die Nibelungen: Siegfried (1924). Forge the sword. Slay the dragon. Guard your back.">
+<style>
+html,body{margin:0;padding:0;background:#000;height:100%;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;font-family:Georgia,'Times New Roman',serif;}
+#scene{position:fixed;inset:0;}
+#scene canvas{display:block;width:100%;height:100%;}
+/* film layers */
+.film{position:fixed;inset:0;pointer-events:none;}
+#vignette{background:radial-gradient(ellipse at center,transparent 52%,rgba(0,0,0,0.55) 88%,rgba(0,0,0,0.92) 100%);}
+#grain{opacity:.07;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");animation:grain .42s steps(3) infinite;}
+@keyframes grain{0%{background-position:0 0}33%{background-position:90px 40px}66%{background-position:-60px 110px}100%{background-position:0 0}}
+#flicker{background:#000;opacity:0;animation:flick 7s infinite;}
+@keyframes flick{0%,100%{opacity:0}11%{opacity:.06}11.5%{opacity:0}43%{opacity:.09}44%{opacity:0}72%{opacity:.05}72.6%{opacity:0}}
+#frame{box-shadow:inset 0 0 0 10px #000, inset 0 0 0 12px rgba(233,229,218,.28);border-radius:26px;}
+/* title + cards */
+.overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#e9e5da;background:rgba(5,5,5,.35);}
+.overlay.solid{background:rgba(5,5,5,.93);}
+.cardframe{position:absolute;inset:70px;border:1px solid rgba(233,229,218,.5);pointer-events:none;}
+.cardframe:after{content:'';position:absolute;inset:9px;border:1px solid rgba(233,229,218,.5);}
+.tt{font-variant:small-caps;letter-spacing:.35em;text-indent:.35em;}
+.blink{animation:blink 1.2s steps(1) infinite;}
+@keyframes blink{0%,62%{opacity:1}63%,100%{opacity:0}}
+.swordmark{width:3px;height:80px;background:#e9e5da;margin:26px auto 0;position:relative;}
+.swordmark:before{content:'';position:absolute;top:10px;left:-26px;width:55px;height:3px;background:#e9e5da;}
+.swordmark:after{content:'';position:absolute;bottom:-12px;left:-3.5px;width:10px;height:10px;background:#e9e5da;}
+/* HUD */
+#hud{position:fixed;inset:0;pointer-events:none;color:#7d7a70;}
+.hudline{position:absolute;letter-spacing:.28em;font-size:13px;text-transform:uppercase;}
+#msg{position:absolute;left:0;right:0;top:13%;text-align:center;color:#e9e5da;font-size:19px;letter-spacing:.4em;text-indent:.4em;text-transform:uppercase;}
+#msg.big{font-size:24px;color:#e9e5da;}
+#forgebar{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);width:min(600px,72vw);height:2px;background:rgba(125,122,112,.5);}
+#forgeheat{position:absolute;top:-8px;height:18px;background:rgba(233,229,218,.16);border:1px solid #e9e5da;}
+#forgemark{position:absolute;top:-15px;width:3px;height:32px;background:#e9e5da;}
+#hint{position:absolute;left:0;right:0;bottom:26px;text-align:center;font-size:12px;letter-spacing:.3em;color:#7d7a70;text-transform:uppercase;}
+.hearts{position:absolute;top:34px;left:44px;display:flex;gap:14px;}
+.heart{width:12px;height:12px;background:#e9e5da;transform:rotate(45deg);}
+.pips{position:absolute;top:36px;right:52px;display:flex;gap:6px;flex-direction:row-reverse;}
+.pip{width:12px;height:12px;background:#e9e5da;}
+.pip.off{background:#2e2d29;}
+#timer{position:absolute;top:30px;left:0;right:0;text-align:center;color:#e9e5da;font-size:26px;letter-spacing:.2em;}
+#best{position:absolute;top:38px;right:52px;font-size:12px;letter-spacing:.3em;color:#7d7a70;}
+#mute{position:fixed;right:36px;bottom:26px;color:#7d7a70;font-size:11px;letter-spacing:.25em;pointer-events:none;}
+.hidden{display:none!important;}
+</style>
+<script type="importmap">{"imports":{"three":"./three.module.js"}}</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="hud" class="hidden">
+  <div id="stat" class="hudline" style="top:36px;left:44px;"></div>
+  <div id="stat2" class="hudline" style="top:62px;left:44px;font-size:11px;"></div>
+  <div id="msg" class="hidden"></div>
+  <div class="hearts hidden" id="hearts"></div>
+  <div class="pips hidden" id="pips"></div>
+  <div id="timer" class="hidden"></div>
+  <div id="best" class="hidden"></div>
+  <div id="forgebar" class="hidden"><div id="forgeheat"></div><div id="forgemark"></div></div>
+  <div id="hint"></div>
+</div>
+<div id="title" class="overlay">
+  <div class="cardframe"></div>
+  <div style="font-size:min(11vw,92px);letter-spacing:.22em;text-indent:.22em;">SIEGFRIED</div>
+  <div class="tt" style="margin-top:26px;font-size:min(3.4vw,19px);color:#7d7a70;">A silent game in three acts</div>
+  <div class="tt" style="margin-top:12px;font-size:min(2.8vw,14px);color:#7d7a70;">after Fritz Lang's Die Nibelungen (1924)</div>
+  <div class="swordmark"></div>
+  <div class="blink" style="margin-top:64px;font-size:14px;letter-spacing:.4em;text-indent:.4em;">TAP OR PRESS ANY KEY TO BEGIN</div>
+  <div id="titlebest" style="margin-top:34px;font-size:12px;letter-spacing:.3em;color:#7d7a70;"></div>
+</div>
+<div id="card" class="overlay solid hidden"><div class="cardframe"></div><div id="cardlines"></div><div id="cardgo" class="blink hidden" style="position:absolute;bottom:15%;font-size:12px;letter-spacing:.4em;text-indent:.4em;color:#7d7a70;">TAP TO CONTINUE</div></div>
+<div class="film" id="vignette"></div>
+<div class="film" id="flicker"></div>
+<div class="film" id="grain"></div>
+<div class="film" id="frame"></div>
+<div id="mute"></div>
+<script type="module">
+import * as THREE from 'three';
+
+const INK=0xe9e5da, DIM=0x7d7a70, BLOOD=0x8a1c1c;
+const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);
+const SHOT=params.get('shot');
+
+/* ---------- audio ---------- */
+let AC=null,muted=!!SHOT;
+function unlockAudio(){if(!AC){const A=window.AudioContext||window.webkitAudioContext;if(A){try{AC=new A();}catch(e){AC=null;}}}if(AC&&AC.state==='suspended'){try{AC.resume();}catch(e){}}}
+function beep(f0,f1,dur,type,vol){if(!AC||muted)return;try{const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;o.type=type||'square';o.frequency.setValueAtTime(Math.max(20,f0),t);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);g.gain.setValueAtTime(vol||0.07,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+dur+0.02);}catch(e){}}
+function clang(){beep(230,55,0.16,'square',0.09);beep(1200,300,0.05,'square',0.03);}
+
+/* ---------- renderer ---------- */
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.setClearColor(0x000000);
+$('scene').appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0x000000,26,70);
+const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,0.1,120);
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+const amb=new THREE.AmbientLight(0xffffff,0.22);scene.add(amb);
+const key=new THREE.SpotLight(0xfffdf2,90,60,Math.PI/4.6,0.45,1.6);scene.add(key);scene.add(key.target);
+
+function mat(c){return new THREE.MeshStandardMaterial({color:c,roughness:0.92,metalness:0.04,flatShading:true});}
+const M_INK=mat(INK),M_DIM=mat(0x4a4842),M_BLOOD=new THREE.MeshStandardMaterial({color:BLOOD,roughness:0.6,flatShading:true});
+function box(w,h,d,m){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m||M_INK);}
+function cone(r,h,s,m){return new THREE.Mesh(new THREE.ConeGeometry(r,h,s),m||M_INK);}
+function cyl(r1,r2,h,s,m){return new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,s),m||M_INK);}
+
+/* sparks */
+function makeSparks(n){
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(n*3),3));
+  const p=new THREE.Points(g,new THREE.PointsMaterial({color:INK,size:0.09,sizeAttenuation:true,transparent:true}));
+  p.userData={v:new Float32Array(n*3),life:new Float32Array(n),n:n,on:false};
+  p.frustumCulled=false;
+  return p;
+}
+function burst(p,x,y,z,n,spread,up){
+  const u=p.userData,a=p.geometry.attributes.position.array;
+  u.on=true;let placed=0;
+  for(let i=0;i<u.n&&placed<n;i++){
+    if(u.life[i]>0)continue;
+    a[i*3]=x;a[i*3+1]=y;a[i*3+2]=z;
+    const th=Math.random()*Math.PI*2,ph=Math.random()*Math.PI,s=spread*(0.4+Math.random());
+    u.v[i*3]=Math.cos(th)*Math.sin(ph)*s;u.v[i*3+1]=Math.abs(Math.cos(ph))*s*(up||1);u.v[i*3+2]=Math.sin(th)*Math.sin(ph)*s*0.5;
+    u.life[i]=0.5+Math.random()*0.3;placed++;
+  }
+  p.geometry.attributes.position.needsUpdate=true;
+}
+function stepSparks(p,dt,g){
+  const u=p.userData;if(!u.on)return;
+  const a=p.geometry.attributes.position.array;let any=false;
+  for(let i=0;i<u.n;i++){
+    if(u.life[i]<=0)continue;any=true;
+    u.life[i]-=dt;a[i*3]+=u.v[i*3]*dt;a[i*3+1]+=u.v[i*3+1]*dt;a[i*3+2]+=u.v[i*3+2]*dt;u.v[i*3+1]-=(g||9)*dt;
+    if(u.life[i]<=0){a[i*3+1]=-999;}
+  }
+  p.material.opacity=1;p.geometry.attributes.position.needsUpdate=true;if(!any)u.on=false;
+}
+
+/* hero figure: feet at origin, faces +x when rotation.y=0 */
+function buildHero(){
+  const g=new THREE.Group();
+  const legL=box(0.34,1.1,0.4);legL.position.set(-0.22,0.55,0);
+  const legR=box(0.34,1.1,0.4);legR.position.set(0.22,0.55,0);
+  const torso=box(1.0,1.05,0.62);torso.position.y=1.62;
+  const head=box(0.56,0.52,0.56);head.position.y=2.42;
+  const arm=new THREE.Group();arm.position.set(0.32,2.0,0);
+  const blade=box(1.5,0.12,0.12);blade.position.set(0.75+0.25,0,0);
+  const guard=box(0.14,0.44,0.14);guard.position.set(0.32,0,0);
+  arm.add(blade,guard);
+  /* the cross Kriemhild sewed, on his back */
+  const cross=new THREE.Group();
+  const c1=box(0.3,0.07,0.05,M_BLOOD),c2=box(0.07,0.3,0.05,M_BLOOD);
+  cross.add(c1,c2);cross.position.set(-0.52,1.7,0);cross.visible=false;
+  g.add(legL,legR,torso,head,arm,cross);
+  g.userData={arm,cross};
+  return g;
+}
+
+/* ---------- global state ---------- */
+let state='title',card=null,timeNow=0,shakeT=0;
+let forge=null,dragon=null,hero=null,hunt=null;
+let dragonMaxHP=8;
+let best=0;try{best=parseFloat(localStorage.getItem('siegfried_best'))||0;}catch(e){}
+function saveBest(v){best=v;try{localStorage.setItem('siegfried_best',String(v));}catch(e){}}
+let actGroup=null;
+function setAct(g,fogNear,ambI){if(actGroup)scene.remove(actGroup);actGroup=g;if(g)scene.add(g);scene.fog.near=fogNear||26;amb.intensity=ambI==null?0.22:ambI;}
+function cam(px,py,pz,tx,ty,tz){camera.position.set(px,py,pz);camera.lookAt(tx,ty,tz);cam.tx=tx;cam.ty=ty;cam.tz=tz;cam.px=px;cam.py=py;cam.pz=pz;}
+
+/* HUD helpers */
+function hud(o){
+  $('hud').classList.remove('hidden');
+  $('stat').textContent=o.stat||'';$('stat2').textContent=o.stat2||'';
+  $('hint').textContent=o.hint||'';
+  $('hearts').classList.toggle('hidden',!o.hearts);$('pips').classList.toggle('hidden',!o.pips);
+  $('timer').classList.toggle('hidden',!o.timer);$('best').classList.toggle('hidden',!o.best);
+  $('forgebar').classList.toggle('hidden',!o.bar);
+  if(o.hearts){$('hearts').innerHTML='';for(let i=0;i<o.hearts;i++)$('hearts').insertAdjacentHTML('beforeend','<div class="heart"></div>');}
+  if(o.pips){$('pips').innerHTML='';for(let i=0;i<o.pips[1];i++)$('pips').insertAdjacentHTML('beforeend','<div class="pip'+(i<o.pips[0]?'':' off')+'"></div>');}
+}
+function say(t,big){const m=$('msg');if(!t){m.classList.add('hidden');return;}m.textContent=t;m.classList.remove('hidden');m.classList.toggle('big',!!big);}
+
+/* cards */
+function showCard(lines,next,minT){
+  state='card';card={lines:lines,next:next,t:0,minT:(minT==null?1.2:minT)};
+  $('hud').classList.add('hidden');say(null);
+  const c=$('cardlines');c.innerHTML='';
+  for(const l of lines){
+    const d=document.createElement('div');
+    d.textContent=l.t;
+    d.style.cssText='margin:14px 0;font-size:'+Math.min(l.size/16,(innerWidth*0.055)/(l.size/16))+'em;font-size:'+Math.min(l.size,innerWidth/(l.t.length*0.62+1))+'px;letter-spacing:.3em;text-indent:.3em;color:'+(l.color==='dim'?'#7d7a70':'#e9e5da')+';max-width:78vw;line-height:1.6;';
+    c.appendChild(d);
+  }
+  $('card').classList.remove('hidden');$('cardgo').classList.add('hidden');
+}
+function advanceCard(){if(card&&card.t>=card.minT){const n=card.next;card=null;$('card').classList.add('hidden');n();}}
+
+/* ---------- ACT I - THE FORGE ---------- */
+let F=null;
+function buildForge(){
+  const g=new THREE.Group();
+  const floor=cyl(9,9,0.3,24,M_DIM);floor.position.y=-0.15;g.add(floor);
+  const anvil=new THREE.Group();
+  const base=box(1.9,0.5,1.4);base.position.y=0.25;
+  const waist=box(0.8,0.9,0.9);waist.position.y=0.95;
+  const top=box(2.6,0.5,1.0);top.position.y=1.65;
+  const horn=cone(0.32,1.3,8);horn.rotation.z=Math.PI/2;horn.position.set(-1.75,1.68,0);
+  anvil.add(base,waist,top,horn);g.add(anvil);
+  const billet=box(1.5,0.26,0.4,new THREE.MeshStandardMaterial({color:INK,emissive:INK,emissiveIntensity:0.6,roughness:0.5}));
+  billet.position.set(0.1,2.01,0);g.add(billet);
+  const hammer=new THREE.Group();hammer.position.set(0.1,4.3,0);
+  const handle=cyl(0.07,0.07,1.9,6);handle.position.y=-0.95;
+  const hhead=box(1.0,0.5,0.5);hhead.position.y=-2.05;
+  hammer.add(handle,hhead);g.add(hammer);
+  const sparks=makeSparks(160);g.add(sparks);
+  g.userData={anvil,billet,hammer,sparks};
+  return g;
+}
+function startForge(){$('msg').style.top='13%';
+  setAct(buildForge(),20,0.3);
+  state='forge';
+  forge={strikes:0,need:12,flaws:0,pos:0.15,dir:1,hammerT:0,done:-1,msg:'',msgT:0};
+  F=actGroup.userData;
+  cam(0,3.4,8.6,0,1.5,0);
+  key.position.set(-2.5,7.5,4);key.target.position.set(0,1.6,0);
+  hud({hint:'SPACE / TAP - STRIKE WHEN THE MARK CROSSES THE HEAT',bar:true,stat:'BLOWS 0 / 12'});
+  say(null);
+}
+function forgeHot(){return Math.max(0.08,0.22-forge.strikes*0.011);}
+function forgeStrike(){
+  if(!forge||forge.done>=0)return;
+  if(forge.hammerT>0.14)return;
+  forge.hammerT=0.32;
+  const hot=forgeHot(),d=Math.abs(forge.pos-0.5);
+  if(d<hot/2){forge.strikes+=1;forge.msg='A CLEAN STRIKE';clang();burst(F.sparks,0.1,2.15,0,26,4.4,1.4);shakeT=0.12;}
+  else if(d<hot*0.95){forge.strikes+=0.5;forge.msg='GLANCING';beep(600,240,0.09,'square',0.05);burst(F.sparks,0.1,2.15,0,10,2.6,1);}
+  else{forge.flaws++;forge.msg='A FLAW ENTERS THE BLADE';beep(130,45,0.3,'sawtooth',0.1);shakeT=0.3;}
+  forge.msgT=1.2;
+  if(forge.strikes>=forge.need){forge.done=1.2;clang();burst(F.sparks,0.1,2.15,0,60,6,1.8);}
+}
+function updateForge(dt){
+  if(forge.done<0){
+    const sp=0.85+forge.strikes*0.07;
+    forge.pos+=forge.dir*sp*dt;
+    if(forge.pos>1){forge.pos=1;forge.dir=-1;}
+    if(forge.pos<0){forge.pos=0;forge.dir=1;}
+  }
+  if(forge.hammerT>0)forge.hammerT-=dt;
+  if(forge.msgT>0){forge.msgT-=dt;if(forge.msgT<=0)say(null);}
+  /* hammer visual */
+  const swing=forge.hammerT>0?Math.sin((0.32-forge.hammerT)/0.32*Math.PI):0;
+  F.hammer.rotation.z=-0.22-swing*1.0;
+  F.billet.material.emissiveIntensity=0.6+1.5*(forge.strikes/forge.need)+Math.sin(timeNow*9)*0.08*(forge.strikes/forge.need);
+  key.intensity=90+forge.strikes*3+swing*40;
+  /* bar */
+  const hot=forgeHot();
+  $('forgeheat').style.left=((0.5-hot/2)*100)+'%';$('forgeheat').style.width=(hot*100)+'%';
+  $('forgemark').style.left=(forge.pos*100)+'%';
+  hud({hint:'SPACE / TAP - STRIKE WHEN THE MARK CROSSES THE HEAT',bar:true,
+       stat:'BLOWS '+Math.floor(forge.strikes)+' / '+forge.need,
+       stat2:forge.flaws>0?'FLAWS '+forge.flaws:''});
+  if(forge.msgT>0)say(forge.msg);
+  $('stat2').style.color=forge.flaws>=3?'#8a1c1c':'#7d7a70';
+  stepSparks(F.sparks,dt,10);
+  if(forge.done>=0){
+    forge.done-=dt;
+    if(forge.done<=0){
+      const flawed=forge.flaws>=4;
+      dragonMaxHP=flawed?12:8;
+      showCard([
+        {t:'BALMUNG',size:64},
+        {t:flawed?'FOUR FLAWS RUN THROUGH IT. IT WILL SERVE, BARELY.':'A SWORD TO SPLIT THE ANVIL ITSELF.',size:17,color:'dim'},
+        {t:'ACT II',size:28,color:'dim'},
+        {t:'FAFNIR',size:56},
+        {t:'A DRAGON GUARDS THE HOARD OF THE NIBELUNGS.',size:16,color:'dim'}
+      ],startDragon,1.6);
+    }
+  }
+}
+
+/* ---------- ACT II - FAFNIR ---------- */
+let D=null;
+function buildDragon(){
+  const g=new THREE.Group();
+  const ground=box(30,0.3,14,M_DIM);ground.position.set(0,-0.15,0);g.add(ground);
+  const dr=new THREE.Group();
+  /* body */
+  const body=new THREE.Mesh(new THREE.IcosahedronGeometry(2.4,1),M_INK);
+  body.scale.set(1.7,0.85,1);body.position.set(9.8,2.1,0);dr.add(body);
+  for(let li=0;li<4;li++){const leg=box(0.55,1.3,0.55);leg.position.set(8.2+li*1.15,0.65,li%2===0?0.55:-0.55);dr.add(leg);}
+  for(let i=0;i<6;i++){const sp=cone(0.4,1.3,4);sp.position.set(7.0+i*0.95,3.6+Math.sin(i*0.8)*0.35,0);sp.rotation.z=-0.3;dr.add(sp);}
+  /* tail hint */
+  const tail=cone(0.8,5.5,6);tail.rotation.z=-Math.PI/2.2;tail.position.set(13.4,1.5,0);dr.add(tail);
+  /* neck: 4 tapering segments to head */
+  const neck=new THREE.Group();dr.add(neck);
+  const neckSegs=[];
+  for(let i=0;i<4;i++){const s=cyl(0.85-i*0.13,1.0-i*0.13,1.7,7);neckSegs.push(s);neck.add(s);}
+  /* head */
+  const head=new THREE.Group();head.scale.setScalar(1.35);dr.add(head);
+  const skull=box(1.5,1.0,1.1);skull.position.set(0.5,0.15,0);head.add(skull);
+  const snout=box(1.6,0.55,0.8);snout.position.set(-0.85,0,0);head.add(snout);
+  const jaw=box(1.5,0.3,0.7);jaw.position.set(-0.75,-0.5,0);head.add(jaw);
+  for(let i=0;i<3;i++){const t=cone(0.09,0.3,4,mat(0x050505));t.rotation.x=Math.PI;t.position.set(-1.35+i*0.45,-0.32,0.22);head.add(t);}
+  const horn1=cone(0.16,1.2,5);horn1.rotation.z=0.6;horn1.position.set(1.0,0.95,0);head.add(horn1);
+  const horn2=cone(0.12,0.8,5);horn2.rotation.z=1.0;horn2.position.set(1.35,0.7,0.1);head.add(horn2);
+  g.add(dr);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.16,8,8),new THREE.MeshBasicMaterial({color:0x050505}));eye.position.set(0.15,0.42,0.56);head.add(eye);
+  const eyeGlow=new THREE.Mesh(new THREE.SphereGeometry(0.3,8,8),new THREE.MeshBasicMaterial({color:INK,transparent:true,opacity:0}));eyeGlow.position.copy(eye.position);head.add(eyeGlow);
+  /* fire */
+  const fire=makeSparks(220);fire.material.size=0.34;g.add(fire);
+  /* blood pool */
+  const blood=cyl(1,1,0.06,20,M_BLOOD);blood.position.set(8.6,0.06,0);blood.scale.set(0.01,1,0.01);g.add(blood);
+  /* hero */
+  hero=buildHero();hero.position.set(-4.5,0,0);g.add(hero);
+  const sparks=makeSparks(120);g.add(sparks);
+  g.userData={dragon:dr,head,jaw,eyeGlow,neckSegs,fire,blood,sparks};
+  return g;
+}
+function startDragon(){$('msg').style.top='13%';
+  setAct(buildDragon(),24,0.5);
+  state='dragon';
+  dragon={hp:dragonMaxHP,maxhp:dragonMaxHP,phase:'idle',t:0,headY:4.4,headX:4.0,fireOn:false,fireTargetX:0,breaths:0,bloodT:0,eyeGlow:0,dead:false};
+  hero.userData.x=-4.5;hero.userData.hearts=3;hero.userData.inv=0;hero.userData.swingT=0;
+  D=actGroup.userData;
+  cam(0,4.0,14.5,1.4,2.6,0);
+  key.position.set(-3,10,7);key.target.position.set(4,2.5,0);
+  const dfill=new THREE.SpotLight(0xfffdf2,70,60,Math.PI/4,0.5,1.4);dfill.position.set(14,9,9);dfill.target.position.set(7,3,0);actGroup.add(dfill,dfill.target);
+  hud({hint:'A / D OR DRAG - MOVE      SPACE / TAP - STRIKE',hearts:3,pips:[dragon.hp,dragon.maxhp]});
+  say(null);
+}
+function headWorld(){return {x:dragon.headX,y:dragon.headY};}
+function heroSwing(){
+  if(!hero||!dragon)return;
+  const h=hero.userData;
+  if(h.swingT>0.1)return;
+  h.swingT=0.28;
+  beep(300,900,0.07,'square',0.03);
+  if(dragon.phase==='low'&&!dragon.dead){
+    if(Math.abs(h.x-(dragon.headX-0.9))<3.6){
+      dragon.hp--;
+      burst(D.sparks,dragon.headX-0.9,dragon.headY,0,26,5,1.2);
+      clang();shakeT=0.35;
+      if(dragon.hp<=0){dragon.dead=true;dragon.phase='dying';dragon.t=0;beep(80,30,1.0,'sawtooth',0.12);}
+    }
+  }
+}
+function fireHitsHero(){
+  const h=hero.userData,m={x:dragon.headX-1.6,y:dragon.headY-0.3};
+  const tx=dragon.fireTargetX,ty=0.9;
+  for(let i=1;i<=16;i++){
+    const f=i/16;
+    const px=m.x+(tx-m.x)*f, py=m.y+(ty-m.y)*f+Math.sin(timeNow*24+i*1.7)*0.28*f;
+    const dx=px-h.x,dy=py-1.1;
+    if(dx*dx+dy*dy<0.16)return true;
+  }
+  return false;
+}
+function updateDragon(dt){
+  const h=hero.userData,dg=dragon;
+  if(h.inv>0)h.inv-=dt;
+  if(h.swingT>0)h.swingT-=dt;
+  let mv=0;
+  if(keysDown['ArrowLeft']||keysDown['KeyA'])mv-=1;
+  if(keysDown['ArrowRight']||keysDown['KeyD'])mv+=1;
+  if(mv!==0)h.x+=mv*5.4*dt;
+  if(mouse.down){h.x+=(((mouse.x/innerWidth)*16-8)-h.x)*Math.min(1,dt*10);}
+  h.x=Math.max(-6.4,Math.min(5.6,h.x));
+  hero.position.x=h.x;
+  hero.userData.arm.rotation.z=-0.4-(h.swingT>0?Math.sin((0.28-h.swingT)/0.28*Math.PI)*1.9:0);
+  hero.visible=(h.inv<=0||Math.floor(timeNow*12)%2===0);
+  dg.t+=dt;
+  if(dg.phase==='idle'){
+    dg.headY=4.4+Math.sin(timeNow*1.4)*0.5;
+    if(dg.t>2.0){dg.phase='telegraph';dg.t=0;}
+  }else if(dg.phase==='telegraph'){
+    dg.headY+=(3.6-dg.headY)*Math.min(1,dt*6);
+    dg.eyeGlow=Math.min(1,dg.eyeGlow+dt*3);
+    if(dg.t>0.7){dg.fireTargetX=h.x;dg.phase='breath';dg.t=0;beep(60,180,0.5,'sawtooth',0.06);}
+  }else if(dg.phase==='breath'){
+    dg.eyeGlow=Math.max(0,dg.eyeGlow-dt*4);
+    dg.fireOn=true;
+    if(h.inv<=0&&fireHitsHero()){
+      h.hearts--;h.inv=1.4;shakeT=0.5;beep(90,40,0.4,'sawtooth',0.12);
+      burst(D.sparks,h.x,1.2,0,30,4,1.6);
+      if(h.hearts<=0){
+        showCard([
+          {t:'THE FIRE TOOK HIM',size:52},
+          {t:'THE FORGE REMEMBERS. RISE AGAIN.',size:16,color:'dim'}
+        ],startDragon,1.4);
+        return;
+      }
+    }
+    if(dg.t>1.5){
+      dg.fireOn=false;dg.breaths++;
+      if(dg.breaths%3===0){dg.phase='telegraph';dg.t=0;}
+      else{dg.phase='low';dg.t=0;}
+    }
+  }else if(dg.phase==='low'){
+    dg.headY+=(1.5-dg.headY)*Math.min(1,dt*5);
+    if(dg.t>2.3){dg.phase='idle';dg.t=0;}
+  }else if(dg.phase==='dying'){
+    dg.fireOn=false;
+    dg.headY+=(0.8-dg.headY)*Math.min(1,dt*2);
+    dg.bloodT=Math.min(1,dg.bloodT+dt*0.5);
+    if(dg.t>2.4){
+      showCard([
+        {t:'THE BLOOD',size:60},
+        {t:'FAFNIR IS SLAIN. SIEGFRIED BATHED IN ITS BLOOD,',size:16,color:'dim'},
+        {t:'AND HIS SKIN TURNED TO HORN.',size:16,color:'dim'}
+      ],act3Card,1.6);
+      return;
+    }
+  }
+  /* dragon visuals */
+  const jawOpen=dg.fireOn?0.5:(dg.phase==='telegraph'?0.28:0.08);
+  D.jaw.rotation.z=jawOpen;D.jaw.position.y=-0.5-jawOpen*0.35;
+  D.eyeGlow.material.opacity=dg.eyeGlow*0.85;
+  D.eyeGlow.scale.setScalar(1+dg.eyeGlow*1.6);
+  D.head.position.set(dg.headX,dg.headY,0);
+  /* neck segments stretch from body to head */
+  const bx=7.4,by=2.9;
+  for(let i=0;i<4;i++){
+    const f=(i+0.5)/4;
+    const s=D.neckSegs[i];
+    s.position.set(bx+(dg.headX+0.8-bx)*f, by+(dg.headY-by)*f + Math.sin(f*Math.PI)*0.4, 0);
+    s.rotation.z=Math.atan2(dg.headY-by,dg.headX+0.8-bx)-Math.PI/2;
+  }
+  /* fire particles */
+  if(dg.fireOn){
+    const m={x:dg.headX-1.6,y:dg.headY-0.3};
+    for(let k=0;k<4;k++){
+      const f=Math.random();
+      const px=m.x+(dg.fireTargetX-m.x)*f, py=Math.max(0.2,m.y+(0.9-m.y)*f+Math.sin(timeNow*24+f*9)*0.28*f);
+      burst(D.fire,px,py,(Math.random()-0.5)*0.5,2,0.8,0.4);
+    }
+  }
+  stepSparks(D.fire,dt,1.2);
+  stepSparks(D.sparks,dt,10);
+  /* blood */
+  if(dg.bloodT>0){const s=0.01+dg.bloodT*4.6;D.blood.scale.set(s,1,s*0.7);}
+  hud({hint:'A / D OR DRAG - MOVE      SPACE / TAP - STRIKE',hearts:h.hearts,pips:[dg.hp,dg.maxhp]});
+  if(dg.phase==='low'&&!dg.dead){if((timeNow%1.2)<0.75)say('STRIKE NOW',true);else say(null);}else if(state==='dragon')say(null);
+}
+function act3Card(){
+  showCard([
+    {t:'ACT III',size:28,color:'dim'},
+    {t:'THE HUNT',size:56},
+    {t:'ONE LINDEN LEAF FELL BETWEEN HIS SHOULDERS AS HE BATHED.',size:15,color:'dim'},
+    {t:'KRIEMHILD SEWED A CROSS OVER THE SPOT, THAT HAGEN MIGHT GUARD IT.',size:15,color:'dim'},
+    {t:'HAGEN TOOK NOTE.',size:18}
+  ],startHunt,2.0);
+}
+
+/* ---------- ACT III - THE HUNT ---------- */
+let H=null;
+function buildHunt(){
+  const g=new THREE.Group();
+  const floor=cyl(20,20,0.3,28,M_DIM);floor.position.y=-0.15;g.add(floor);
+  const trees=new THREE.Group();
+  for(let i=0;i<26;i++){
+    const a=Math.random()*Math.PI*2,r=10.5+Math.random()*8;
+    const t=new THREE.Group();
+    const hgt=2.4+Math.random()*3.4,w=0.9+Math.random()*0.8;
+    const trunk=cyl(0.09,0.13,hgt*0.35,5);trunk.position.y=hgt*0.17;
+    const crown=cone(w,hgt,6);crown.position.y=hgt*0.35+hgt/2-0.2;
+    t.add(trunk,crown);t.position.set(Math.cos(a)*r,0,Math.sin(a)*r);
+    trees.add(t);
+  }
+  g.add(trees);
+  hero=buildHero();hero.userData.cross.visible=true;g.add(hero);
+  const spears=new THREE.Group();g.add(spears);
+  const sparks=makeSparks(140);g.add(sparks);
+  g.userData={trees,spears,sparks};
+  return g;
+}
+function startHunt(){$('msg').style.top='68%';
+  setAct(buildHunt(),22,0.32);
+  state='hunt';
+  hunt={t:0,spawnT:1.0,spears:[],dead:false,dieT:0,killer:null,faceLock:0,msgT:6,facing:-Math.PI/2};
+  H=actGroup.userData;
+  cam(0,8.0,12.5,0,0.6,0);
+  key.position.set(2,12,6);key.target.position.set(0,0.8,0);
+  hud({hint:'MOUSE / DRAG OR A / D - TURN',timer:true,best:true});
+  say('FACE EACH SPEAR. YOUR BACK BEARS THE CROSS.');
+}
+function spawnSpear(){
+  const a=Math.random()*Math.PI*2,r=24;
+  const sx=Math.cos(a)*r,sz=Math.sin(a)*r;
+  const ja=(Math.random()-0.5)*0.10;
+  const va=Math.atan2(0-sz,0-sx)+ja;
+  const sp=Math.min(7.3,3.1+hunt.t*0.072);
+  const M_SPEAR=new THREE.MeshBasicMaterial({color:INK});
+  const m=new THREE.Group();
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.6,5),M_SPEAR);shaft.rotation.z=Math.PI/2;
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.12,0.45,5),M_SPEAR);tip.rotation.z=-Math.PI/2;tip.position.x=1.5;
+  m.add(shaft,tip);
+  m.position.set(sx,1.15,sz);
+  m.rotation.y=-va;
+  H.spears.add(m);
+  hunt.spears.push({m:m,vx:Math.cos(va)*sp,vz:Math.sin(va)*sp});
+  if(hunt.t>25&&Math.random()<0.25){
+    const a2=Math.random()*Math.PI*2;
+    const s2x=Math.cos(a2)*r,s2z=Math.sin(a2)*r;
+    const v2a=Math.atan2(0-s2z,0-s2x);
+    const m2=m.clone();m2.position.set(s2x,1.15,s2z);m2.rotation.y=-v2a;
+    H.spears.add(m2);
+    hunt.spears.push({m:m2,vx:Math.cos(v2a)*sp,vz:Math.sin(v2a)*sp});
+  }
+}
+function updateHunt(dt){
+  const Hu=hunt;
+  if(Hu.dead){
+    Hu.dieT+=dt;
+    hero.rotation.z=-Math.min(1,Hu.dieT*1.5)*(Math.PI/2)*0.9;
+    if(Hu.dieT>2.0){
+      const t=Hu.t,isBest=t>best;
+      if(isBest)saveBest(t);
+      showCard([
+        {t:'SIEGFRIED FALLS',size:60},
+        {t:'AT THE SPRING, THE SPEAR FOUND THE CROSS.',size:16,color:'dim'},
+        {t:'YOU LASTED '+t.toFixed(1)+' SECONDS',size:22},
+        {t:isBest?'A NEW LONGEST HUNT.':'THE LONGEST HUNT: '+best.toFixed(1)+' SECONDS',size:15,color:'dim'}
+      ],function(){toTitle();},1.6);
+    }
+    return;
+  }
+  Hu.t+=dt;
+  if(Hu.msgT>0){Hu.msgT-=dt;if(Hu.msgT<=0)say(null);}
+  let rot=0;
+  if(keysDown['ArrowLeft']||keysDown['KeyA'])rot-=1;
+  if(keysDown['ArrowRight']||keysDown['KeyD'])rot+=1;
+  if(rot!==0){Hu.facing+=rot*3.2*dt;Hu.faceLock=timeNow+1.2;}
+  if(timeNow>Hu.faceLock){
+    const dx=((mouse.x/innerWidth)*2-1)*10,dy=((mouse.y/innerHeight)*2-1)*8;
+    if(dx*dx+dy*dy>0.2)Hu.facing=Math.atan2(dy,dx);
+  }
+  hero.rotation.y=-Hu.facing+Math.PI/2;
+  Hu.spawnT-=dt;
+  if(Hu.spawnT<=0){spawnSpear();Hu.spawnT=Math.max(0.55,1.5-Hu.t*0.018);}
+  for(let i=Hu.spears.length-1;i>=0;i--){
+    const s=Hu.spears[i];
+    s.m.position.x+=s.vx*dt;s.m.position.z+=s.vz*dt;
+    const ddx=s.m.position.x,ddz=s.m.position.z;
+    if(ddx*ddx+ddz*ddz<0.42){
+      const vl=Math.sqrt(s.vx*s.vx+s.vz*s.vz)||1;
+      const ux=s.vx/vl,uz=s.vz/vl;
+      const dot=ux*Math.cos(Hu.facing)+uz*Math.sin(Hu.facing);
+      if(dot>0.45){
+        Hu.dead=true;Hu.killer=s;Hu.dieT=0;
+        beep(90,28,1.1,'sawtooth',0.13);shakeT=0.8;
+        s.vx=0;s.vz=0;s.m.position.set(-Math.cos(Hu.facing)*0.4,1.55,-Math.sin(Hu.facing)*0.4);
+      }else{
+        burst(H.sparks,ddx*0.5,1.2,ddz*0.5,12,4,1.4);
+        beep(950,1500,0.05,'square',0.045);
+        H.spears.remove(s.m);Hu.spears.splice(i,1);
+      }
+      continue;
+    }
+    if(Math.abs(ddx)>26||Math.abs(ddz)>26){H.spears.remove(s.m);Hu.spears.splice(i,1);}
+  }
+  stepSparks(H.sparks,dt,9);
+  $('timer').textContent=Hu.t.toFixed(1);
+  if(best>0)$('best').textContent='BEST '+best.toFixed(1);
+}
+
+/* ---------- title / cards ---------- */
+function toTitle(){
+  state='title';setAct(buildForge(),20,0.3);F=actGroup.userData;
+  cam(0,3.4,8.6,0,1.5,0);
+  key.position.set(-2.5,7.5,4);key.target.position.set(0,1.6,0);
+  $('title').classList.remove('hidden');$('hud').classList.add('hidden');say(null);
+  $('titlebest').textContent=best>0?'LONGEST HUNT  '+best.toFixed(1)+' SECONDS':'';
+}
+function toAct1Card(){
+  $('title').classList.add('hidden');
+  showCard([
+    {t:'ACT I',size:30,color:'dim'},
+    {t:'THE FORGE',size:64},
+    {t:'SIEGFRIED, SON OF SIEGMUND, FORGES A SWORD NO ANVIL CAN HOLD.',size:16,color:'dim'}
+  ],startForge,1.4);
+}
+
+/* ---------- input ---------- */
+const mouse={x:innerWidth/2,y:innerHeight/2,down:false};
+const keysDown={};
+function primaryKey(code){
+  unlockAudio();
+  if(code==='KeyM'){muted=!muted;$('mute').textContent='M - SOUND '+(muted?'OFF':'ON');return;}
+  if(state==='title'){toAct1Card();return;}
+  if(state==='card'){advanceCard();return;}
+  if(state==='forge'&&(code==='Space'||code==='Enter')){forgeStrike();return;}
+  if(state==='dragon'&&(code==='Space'||code==='Enter')){heroSwing();return;}
+}
+function tap(){
+  unlockAudio();
+  if(state==='title'){toAct1Card();return;}
+  if(state==='card'){advanceCard();return;}
+  if(state==='forge'){forgeStrike();return;}
+  if(state==='dragon'){heroSwing();return;}
+}
+addEventListener('keydown',e=>{if(e.repeat)return;keysDown[e.code]=true;primaryKey(e.code);if(e.code==='Space')e.preventDefault();});
+addEventListener('keyup',e=>{keysDown[e.code]=false;});
+addEventListener('mousedown',e=>{mouse.down=true;mouse.x=e.clientX;mouse.y=e.clientY;tap();});
+addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;});
+addEventListener('mouseup',()=>{mouse.down=false;});
+addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];mouse.down=true;mouse.x=t.clientX;mouse.y=t.clientY;tap();},{passive:false});
+addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];mouse.x=t.clientX;mouse.y=t.clientY;},{passive:false});
+addEventListener('touchend',e=>{e.preventDefault();mouse.down=false;},{passive:false});
+
+/* ---------- main loop ---------- */
+function update(dt){
+  timeNow+=dt;
+  if(shakeT>0)shakeT-=dt;
+  if(state==='card'&&card){card.t+=dt;if(card.t>=card.minT)$('cardgo').classList.remove('hidden');}
+  else if(state==='forge')updateForge(dt);
+  else if(state==='dragon')updateDragon(dt);
+  else if(state==='hunt')updateHunt(dt);
+  else if(state==='title'&&F){F.hammer.rotation.z=-0.22+Math.sin(timeNow*0.8)*0.05;F.billet.material.emissiveIntensity=0.3+Math.sin(timeNow*2)*0.08;}
+}
+let last=-1;
+function frame(ts){
+  if(last<0)last=ts;
+  let dt=(ts-last)/1000;last=ts;
+  if(dt>0.05)dt=0.05;if(dt<0)dt=0;
+  update(dt);
+  let shx=0,shy=0;
+  if(shakeT>0){shx=(Math.random()-0.5)*shakeT*0.5;shy=(Math.random()-0.5)*shakeT*0.5;}
+  if(cam.px!==undefined){camera.position.set(cam.px+shx,cam.py+shy,cam.pz);camera.lookAt(cam.tx,cam.ty,cam.tz);}
+  renderer.render(scene,camera);
+  requestAnimationFrame(frame);
+}
+$('mute').textContent='M - SOUND ON';
+toTitle();
+if(SHOT==='forge'){$('title').classList.add('hidden');startForge();}
+else if(SHOT==='dragon'){$('title').classList.add('hidden');dragonMaxHP=8;startDragon();}
+else if(SHOT==='hunt'){$('title').classList.add('hidden');startHunt();}
+const FF=parseFloat(params.get('t')||'0');
+if(FF>0){for(let i=0;i<FF*60;i++)update(1/60);}
+requestAnimationFrame(frame);
+
+window.__SIEGE__={
+  update:update,tap:tap,primaryKey:primaryKey,forgeStrike:forgeStrike,heroSwing:heroSwing,
+  getState:function(){return state;},
+  getForge:function(){return forge;},
+  getDragon:function(){return dragon;},
+  getHero:function(){return hero;},
+  getHunt:function(){return hunt;},
+  setMouse:function(x,y){mouse.x=x;mouse.y=y;},
+  setKey:function(c,v){keysDown[c]=v;},
+  startHunt:startHunt,startForge:startForge,startDragon:startDragon
+};
+</script>
+</body>
+</html>
